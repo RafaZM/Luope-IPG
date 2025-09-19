@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Refeitório</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .hidden { display: none; }
+    .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 5px; background: #f9f9f9; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #f5f5f5; }
+    button { padding: 6px 12px; cursor: pointer; }
+    dl { margin: 0 0 10px 0; }
+    dt { font-weight: bold; }
+    dd { margin: 0 0 5px 15px; }
+    .takeaway { color:#FF5252; font-weight:bold; }
+
+    .tabs { display: flex; margin-bottom: 15px; }
+    .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #ccc; border-bottom: none; margin-right: 5px; background: #f5f5f5; }
+    .tab.active { background: #009688; color: white; font-weight: bold; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    #canteen-list { margin-bottom: 15px; }
+    .canteen-btn { margin-right: 10px; margin-bottom: 5px; padding: 6px 12px; cursor: pointer; }
+    .canteen-btn.selected { background-color: #009688; color: white; }
+
+    #canteen-menu { display: flex; flex-wrap: wrap; gap: 15px; }
+    .day-menu { flex: 1 1 300px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; background: #fff; }
+    .day-menu h4 { margin-top: 0; }
+    .day-menu dl { margin-bottom: 10px; }
+    .separator { border: 0; border-top: 1px solid #ccc; margin: 5px 0; }
+
+    #logout-btn { margin-top: 10px; background-color: #FF5252; color: white; border: none; padding: 6px 12px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<div id="login-box" class="box">
+  <h2>Login</h2>
+  <input type="text" id="email" placeholder="Email"><br><br>
+  <input type="password" id="password" placeholder="Password"><br><br>
+  <button onclick="login()">Entrar</button>
+  <p id="login-error" style="color:red;"></p>
+</div>
+
+<div id="dashboard" class="hidden">
+  <h2>Bem-vindo, <span id="username"></span></h2>
+  <p>Saldo: € <span id="balance"></span></p>
+  <button id="logout-btn" onclick="logout()">Logout</button>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('meals')">Refeições</div>
+    <div class="tab" onclick="showTab('movements-box')">Movimentos</div>
+    <div class="tab" onclick="showTab('reservations-box')">Reservas</div>
+    <div class="tab" onclick="showTab('account-box')">A sua conta</div>
+  </div>
+
+  <!-- Refeições -->
+  <div id="meals" class="tab-content active">
+    <div class="box">
+      <h3>Cantinas</h3>
+      <div id="canteen-list">
+        <button class="canteen-btn selected" data-id="34" onclick="loadCanteenMenu(34)">Cantina 1 - Campus</button>
+        <button class="canteen-btn" data-id="36" onclick="loadCanteenMenu(36)">Cantina 2 - Residências</button>
+        <button class="canteen-btn" data-id="38" onclick="loadCanteenMenu(38)">Cantina ESTH</button>
+        <button class="canteen-btn" data-id="39" onclick="loadCanteenMenu(39)">Churrasqueira</button>
+      </div>
+    </div>
+
+    <div class="box">
+      <h3>Ementa - <span id="selected-canteen-name">Cantina 1 - Campus</span></h3>
+      <div id="canteen-menu"></div>
+    </div>
+  </div>
+
+  <!-- Movimentos -->
+  <div id="movements-box" class="tab-content">
+    <div class="box">
+      <h3>Movimentos</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Descrição</th>
+            <th>Valor</th>
+            <th>Data</th>
+          </tr>
+        </thead>
+        <tbody id="movements"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Reservas -->
+  <div id="reservations-box" class="tab-content">
+    <div class="box">
+      <h3>Reservas</h3>
+      <table id="reservations-list" style="width:100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th>Descrição</th>
+            <th>Valor</th>
+            <th>Comprado em:</th>
+            <th>Dia da Refeição</th>
+            <th>Operações</th>
+          </tr>
+        </thead>
+        <tbody id="reservations-list-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Conta -->
+  <div id="account-box" class="tab-content">
+    <div class="box">
+      <h3>Os seus dados pessoais</h3>
+      <table class="f-table">
+        <tbody>
+          <tr><td>Nome:</td><td id="account-name"></td></tr>
+          <tr><td>Email:</td><td id="account-email"></td></tr>
+          <tr><td>Saldo:</td><td id="account-balance"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let token = null;
+
+// Login persistente na sessão
+window.addEventListener('DOMContentLoaded', () => {
+  const savedToken = sessionStorage.getItem('token');
+  if (savedToken) {
+    token = savedToken;
+    document.getElementById('login-box').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    loadDashboard();
+  }
+});
+
+async function login() {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const params = new URLSearchParams();
+  params.append('email', email);
+  params.append('password', password);
+
+  try {
+    const res = await fetch('https://cordeirovending.luope.com/api/kiosk/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: params
+    });
+    const data = await res.json();
+    if (data?.token) {
+      token = data.token;
+      sessionStorage.setItem('token', token); // guarda token na sessão
+      document.getElementById('login-box').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+      loadDashboard();
+    } else {
+      document.getElementById('login-error').innerText = 'Login falhou';
+    }
+  } catch (err) {
+    document.getElementById('login-error').innerText = 'Erro de rede';
+  }
+}
+
+function logout() {
+  token = null;
+  sessionStorage.removeItem('token');
+  document.getElementById('login-box').classList.remove('hidden');
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('email').value = '';
+  document.getElementById('password').value = '';
+}
+
+function showTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  const tabIndex = { 'meals':1,'movements-box':2,'reservations-box':3,'account-box':4 }[tabId];
+  document.querySelector(`.tab:nth-child(${tabIndex})`).classList.add('active');
+}
+
+async function loadDashboard() {
+  const info = await postApi('user/getInfo');
+  document.getElementById('username').innerText = info?.name || 'Utilizador';
+  document.getElementById('balance').innerText = info?.balance || '0.00';
+  document.getElementById('account-name').innerText = info?.name || '';
+  document.getElementById('account-email').innerText = info?.email || '';
+  document.getElementById('account-balance').innerText = info?.balance || '0.00';
+
+  const movements = await postApi('movement/getAll');
+  const listMov = document.getElementById('movements');
+  listMov.innerHTML = '';
+  movements?.forEach(m => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${m.description||''}</td><td>${m.mov_value!==undefined?m.mov_value:''} €</td><td>${m.mov_date||''}</td>`;
+    listMov.appendChild(tr);
+  });
+
+  await updateReservations();
+  loadCanteenMenu(34);
+}
+
+async function loadCanteenMenu(canteenId) {
+  document.querySelectorAll('.canteen-btn').forEach(btn => btn.classList.remove('selected'));
+  document.querySelector(`.canteen-btn[data-id='${canteenId}']`).classList.add('selected');
+  document.getElementById('selected-canteen-name').innerText = document.querySelector(`.canteen-btn[data-id='${canteenId}']`).innerText;
+
+  const menu = await postApi('ement/getByCanteen', `canteen_id=${canteenId}`);
+  const reservations = await postApi('ement/reserved');
+  const reservedIds = reservations.map(r => r.ement_id);
+
+  const container = document.getElementById('canteen-menu');
+  container.innerHTML = '';
+
+  const mealsByDay = {};
+  menu.forEach(item => {
+    if (!mealsByDay[item.date]) mealsByDay[item.date] = [];
+    mealsByDay[item.date].push(item);
+  });
+
+  for (const [date, meals] of Object.entries(mealsByDay)) {
+    const dayDiv = document.createElement('div');
+    dayDiv.className = 'day-menu';
+
+    const dayName = new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const h4 = document.createElement('h4');
+    h4.innerText = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    dayDiv.appendChild(h4);
+
+    meals.forEach((item, index) => {
+      const dl = document.createElement('dl');
+      dl.className = 'typo-styles';
+
+      const dt = document.createElement('dt');
+      const isReserved = reservedIds.includes(item.ement_id);
+      dt.innerHTML = `€ ${item.price} 
+        <button style="float:right; margin-left:5px;" 
+        ${isReserved ? 'disabled style="cursor:default"' : `onclick="reserveMeal('${item.ement_id}')"`}>
+        ${isReserved ? 'Reservado' : 'Reservar'}</button>`;
+      dl.appendChild(dt);
+
+      const dd = document.createElement('dd');
+      dd.innerHTML = `<h5>${item.description}</h5> Almoço ${item.take_away ? '<span class="takeaway">- Take-Away</span>' : ''}<br><small>${item.date}</small>`;
+      dl.appendChild(dd);
+
+      dayDiv.appendChild(dl);
+
+      if (index < meals.length - 1) {
+        const hr = document.createElement('hr');
+        hr.className = 'separator';
+        dayDiv.appendChild(hr);
+      }
+    });
+
+    container.appendChild(dayDiv);
+  }
+}
+
+async function reserveMeal(mealId) {
+  await postApi('ement/reserve', `ement_id=${mealId}`);
+
+  const btn = document.querySelector(`button[onclick="reserveMeal('${mealId}')"]`);
+  if (btn) {
+    btn.innerText = 'Reservado';
+    btn.disabled = true;
+    btn.style.cursor = 'default';
+  }
+
+  await updateReservations();
+  await loadDashboard();
+
+  alert('Refeição reservada com sucesso!');
+}
+
+async function updateReservations() {
+  const reservations = await postApi('ement/reserved');
+  const tbody = document.getElementById('reservations-list-body');
+  tbody.innerHTML = '';
+
+  reservations?.forEach(r => {
+    const tr = document.createElement('tr');
+    const description = r.ement_description||'';
+    const price = r.price!==undefined?`${r.price} €`:'';
+    const purchasedAt = r.created_at || r.reservation_date || '';
+    const mealDate = r.ement_date||'';
+    const operations = `<a href="#" onclick="cancelReservation('${r.reservation_id}')">cancelar reserva</a>`;
+    tr.innerHTML = `<td>${description}</td><td>${price}</td><td>${purchasedAt}</td><td>${mealDate}</td><td>${operations}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function cancelReservation(reservationId) {
+  if (!confirm('Tem certeza que deseja cancelar esta reserva?')) return;
+
+  await postApi('ement/unreserve', `reservation_id=${reservationId}`);
+  await updateReservations();
+  await loadDashboard();
+
+  alert('Reserva cancelada com sucesso!');
+}
+
+async function postApi(path, body=null) {
+  if (!token) return;
+  const url = `https://cordeirovending.luope.com/api/kiosk/${path}/${token}`;
+  const options = { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'} };
+  if (body!==null) options.body = body;
+  else options.headers['Content-Length']='0';
+  const res = await fetch(url, options);
+  return res.json();
+}
+</script>
+
+</body>
+</html>
