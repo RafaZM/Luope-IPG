@@ -128,8 +128,8 @@
 
 <script>
 let token = null;
+let currentCanteenId = 34; // guarda a cantina selecionada
 
-// Login persistente na sessão
 window.addEventListener('DOMContentLoaded', () => {
   const savedToken = sessionStorage.getItem('token');
   if (savedToken) {
@@ -156,7 +156,7 @@ async function login() {
     const data = await res.json();
     if (data?.token) {
       token = data.token;
-      sessionStorage.setItem('token', token); // guarda token na sessão
+      sessionStorage.setItem('token', token);
       document.getElementById('login-box').classList.add('hidden');
       document.getElementById('dashboard').classList.remove('hidden');
       loadDashboard();
@@ -203,10 +203,11 @@ async function loadDashboard() {
   });
 
   await updateReservations();
-  loadCanteenMenu(34);
+  loadCanteenMenu(currentCanteenId); // carrega a cantina atual
 }
 
 async function loadCanteenMenu(canteenId) {
+  currentCanteenId = canteenId; // atualiza a cantina selecionada
   document.querySelectorAll('.canteen-btn').forEach(btn => btn.classList.remove('selected'));
   document.querySelector(`.canteen-btn[data-id='${canteenId}']`).classList.add('selected');
   document.getElementById('selected-canteen-name').innerText = document.querySelector(`.canteen-btn[data-id='${canteenId}']`).innerText;
@@ -246,7 +247,7 @@ async function loadCanteenMenu(canteenId) {
       dl.appendChild(dt);
 
       const dd = document.createElement('dd');
-      dd.innerHTML = `<h5>${item.description}</h5> Almoço ${item.take_away ? '<span class="takeaway">- Take-Away</span>' : ''}<br><small>${item.date}</small>`;
+      dd.innerHTML = `<h5>${item.description}</h5> ${item.category_description || ''} ${item.take_away ? '<span class="takeaway">- Take-Away</span>' : ''}<br><small>${item.date}</small>`;
       dl.appendChild(dd);
 
       dayDiv.appendChild(dl);
@@ -273,7 +274,7 @@ async function reserveMeal(mealId) {
   }
 
   await updateReservations();
-  await loadDashboard();
+  loadCanteenMenu(currentCanteenId); // recarrega apenas a cantina atual
 
   alert('Refeição reservada com sucesso!');
 }
@@ -286,7 +287,7 @@ async function updateReservations() {
   reservations?.forEach(r => {
     const tr = document.createElement('tr');
     const description = r.ement_description||'';
-    const price = r.price!==undefined?`${r.price} €`:'';
+    const price = r.price!==undefined?`${r.price} €`:''; 
     const purchasedAt = r.created_at || r.reservation_date || '';
     const mealDate = r.ement_date||'';
     const operations = `<a href="#" onclick="cancelReservation('${r.reservation_id}')">cancelar reserva</a>`;
@@ -300,7 +301,7 @@ async function cancelReservation(reservationId) {
 
   await postApi('ement/unreserve', `reservation_id=${reservationId}`);
   await updateReservations();
-  await loadDashboard();
+  loadCanteenMenu(currentCanteenId); // recarrega a cantina atual
 
   alert('Reserva cancelada com sucesso!');
 }
@@ -318,4 +319,3 @@ async function postApi(path, body=null) {
 
 </body>
 </html>
-
