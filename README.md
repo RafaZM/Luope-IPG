@@ -10,10 +10,6 @@ Criado devido à péssima interface do website original, que não apresentava pa
 
 ## 📌 TO DO (Pedir ao ChatGPT para fazer se algum dia arranjar tempo para tal):
 
-- **Não diferencia almoço de jantar**.
-
-    - Tentar concertar. 📌
-
 - Atualmente, o website **usa o mesmo layout para todos os dispositivos**.
 
     - Otimizar o layout para exibição adequada em dispositivos móveis e tablets. 📌
